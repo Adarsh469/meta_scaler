@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+env/
+venv/
+.env
+
+# Dataset (Usually too large for GitHub)
+dataset/
+*.jsonl
+*.csv
+
+# OS specific
+.DS_Store
+.idea/
+.vscode/
+
+# OpenEnv local artifacts
+*.log
+.openenv/

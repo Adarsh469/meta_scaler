@@ -1,0 +1,76 @@
+name: clinical-triage-env
+version: "1.0.0"
+description: >
+  An Emergency Department triage simulator where an AI agent manages patient
+  intake, assigns Emergency Severity Index (ESI) levels (1–5), and prioritizes
+  patient queues based on medical urgency. Based on 500 synthetic clinical cases.
+author: clinical-triage-team
+tags:
+  - medical
+  - triage
+  - healthcare
+  - esi
+  - openenv
+
+environment:
+  entry_point: env:ClinicalTriageEnv
+  max_steps: 20
+  observation_type: structured
+  action_type: structured
+
+tasks:
+  - id: task1_esi_assignment
+    name: "Single Patient ESI Assignment"
+    difficulty: easy
+    description: >
+      The agent receives a single patient presentation (age, gender, symptoms,
+      duration, onset, context) and must assign the correct ESI level (1–5).
+      ESI 1 = Immediate resuscitation; ESI 5 = Non-urgent routine care.
+    max_steps: 5
+    reward_range: [0.0, 1.0]
+    success_threshold: 0.5
+    grader: partial_credit_esi
+    grader_description: >
+      1.0 for exact ESI match, 0.4 for ±1 ESI level error, 0.0 otherwise.
+
+  - id: task2_queue_priority
+    name: "Patient Queue Prioritization"
+    difficulty: medium
+    description: >
+      The agent receives 5 patient cases simultaneously and must return them
+      in the correct priority order (most urgent first). Graded using the
+      normalized Kendall Tau rank correlation coefficient.
+    max_steps: 3
+    reward_range: [0.0, 1.0]
+    success_threshold: 0.6
+    grader: kendall_tau_normalized
+    grader_description: >
+      Reward = (tau + 1) / 2 where tau is the Kendall Tau correlation between
+      agent-predicted rank and ground-truth ESI rank.
+
+  - id: task3_ambiguous_triage
+    name: "Ambiguous Triage with Hidden History"
+    difficulty: hard
+    description: >
+      The agent receives an ambiguous patient with initially hidden risk factors
+      (allergies, current medications, drug interactions). The agent must use
+      ask_question actions to uncover the hidden history before assigning a
+      final ESI level. Correctly identifying contraindications earns a bonus.
+    max_steps: 10
+    reward_range: [0.0, 1.3]
+    success_threshold: 0.7
+    grader: ambiguous_triage_grader
+    grader_description: >
+      Base: 1.0 for exact ESI match, 0.4 for ±1. Bonus: +0.3 for correctly
+      identifying contraindications via ask_question. Final reward capped at 1.0
+      for scoring purposes.
+
+metadata:
+  dataset: medical-triage-500
+  dataset_path: ./dataset/medical_triage_500.jsonl
+  clinical_basis: Emergency Severity Index (ESI) v4 guidelines
+  disclaimer: >
+    This environment uses synthetic medical data for AI agent evaluation only.
+    Not for clinical use. All cases are fictional.
+  hf_space_port: 7860
+  python_version: "3.11"
