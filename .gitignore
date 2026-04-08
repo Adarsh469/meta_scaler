@@ -44,3 +44,9 @@ yarn-error.log*
 *.log
 .openenv/
 .server.pid
+# ── Local dev notes ──────────────────────────────────────────────────────────
+run.txt
+
+# ── Runtime learning data (generated at runtime, not source) ─────────────────
+feedback_data.jsonl
+learned_heuristics.json

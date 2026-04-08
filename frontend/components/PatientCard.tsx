@@ -1,6 +1,7 @@
 "use client";
 import { PatientSummary, ESI_LABELS } from "@/lib/types";
 import { UserIcon, ClockIcon, ActivityIcon, MapPinIcon } from "lucide-react";
+import { getPatientName } from "@/lib/names";
 
 interface Props {
     patient: PatientSummary;
@@ -20,10 +21,11 @@ export function PatientCard({ patient, index, compact }: Props) {
                         </div>
                     )}
                     <div>
-                        <div className="font-semibold text-sm text-[#0a84ff]">{patient.case_id}</div>
-                        <div className="flex items-center gap-1.5 text-white/50 text-xs mt-0.5">
-                            <UserIcon className="w-3 h-3" />
-                            <span>{patient.age}y · {patient.gender}</span>
+                        <div className="font-semibold text-sm text-white">{getPatientName(patient.case_id, patient.gender)}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <UserIcon className="w-3 h-3 text-white/40" />
+                            <span className="text-xs text-white/50">{patient.age}y · {patient.gender}</span>
+                            <span className="text-[10px] font-mono text-white/20">{patient.case_id}</span>
                         </div>
                     </div>
                 </div>

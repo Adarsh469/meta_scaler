@@ -140,7 +140,10 @@ def step(request: StepRequest) -> Dict[str, Any]:
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    return result.model_dump()
+    # Merge info dict into the response so the frontend can use true_esi, etc.
+    data = result.model_dump()
+    data["info"] = result.info
+    return data
 
 
 @app.get("/state")
@@ -185,9 +188,211 @@ def list_tasks() -> Dict[str, Any]:
     }
 
 
+
 # ---------------------------------------------------------------------------
-# Frontend static files  (must come AFTER all API routes)
+# Clinical explanation endpoint
 # ---------------------------------------------------------------------------
+
+ESI_CLINICAL_GUIDE = {
+    1: {"label": "Immediate (Resuscitation)", "color": "#ff2d55",
+        "description": "Life-threatening — requires immediate physician intervention.",
+        "indicators": ["cardiac arrest", "respiratory failure", "active hemorrhage"]},
+    2: {"label": "Emergent (High Risk)", "color": "#ff6b00",
+        "description": "High-risk, should NOT wait. Rapid evaluation needed within minutes.",
+        "indicators": ["severe chest pain", "suspected stroke", "high-risk medications"]},
+    3: {"label": "Urgent (Needs Resources)", "color": "#ffd60a",
+        "description": "Stable but requires multiple diagnostic resources (labs, imaging).",
+        "indicators": ["moderate pain", "fever with complex symptoms"]},
+    4: {"label": "Less Urgent", "color": "#30d158",
+        "description": "Stable. Requires one resource. Can be seen in fast-track.",
+        "indicators": ["minor injury", "simple prescription"]},
+    5: {"label": "Non-Urgent", "color": "#636366",
+        "description": "No acute distress. Could be managed in primary care.",
+        "indicators": ["routine check", "cold symptoms"]},
+}
+
+_CRITICAL_SYMS = {"chest pain", "shortness of breath", "blurred vision", "altered mental status", "active hemorrhage"}
+_HIGH_SYMS = {"severe headache", "syncope", "difficulty breathing", "severe pain"}
+
+
+@app.get("/explain")
+def explain(session_id: str = "default") -> Dict[str, Any]:
+    """Generate rich clinical explanation for the completed episode."""
+    env = _sessions.get(session_id)
+    if env is None:
+        raise HTTPException(status_code=400, detail=f"No session '{session_id}'.")
+
+    result: Dict[str, Any] = {"task_id": env.task_id}
+
+    if env.task_id == "task1_esi_assignment" and env._current_case:
+        case = env._current_case
+        true_esi = case.true_esi
+        guide = ESI_CLINICAL_GUIDE[true_esi]
+        reasoning = [
+            f"Patient: {case.age}yo {case.gender} — {', '.join(case.symptoms)}.",
+            f"Risk level: {case.risk_level.upper()} | Red flags: {', '.join(case.red_flags) if case.red_flags else 'none detected'}.",
+        ]
+        for rf in case.red_flags:
+            if rf in _CRITICAL_SYMS:
+                reasoning.append(f"⚠ '{rf}' is a critical red flag → pushes toward ESI 1 or 2.")
+        reasoning.append(f"Correct ESI = {true_esi} ({guide['label']}): {guide['description']}")
+        result.update({"true_esi": true_esi, "esi_label": guide["label"], "esi_color": guide["color"],
+                       "reasoning": reasoning, "red_flags": case.red_flags})
+
+    elif env.task_id == "task2_queue_priority" and env._queue_cases:
+        true_sorted = sorted(env._queue_cases, key=lambda c: c.true_esi)
+        correct_order, reasoning = [], ["Patients must be sorted by ESI (1 = most urgent first)."]
+        for i, c in enumerate(true_sorted, 1):
+            correct_order.append({
+                "rank": i, "case_id": c.case_id, "age": c.age, "gender": c.gender,
+                "symptoms": c.symptoms, "true_esi": c.true_esi,
+                "esi_label": ESI_CLINICAL_GUIDE[c.true_esi]["label"],
+                "esi_color": ESI_CLINICAL_GUIDE[c.true_esi]["color"],
+                "reasoning": f"ESI {c.true_esi}: risk={c.risk_level}" + (f", red flags: {', '.join(c.red_flags)}" if c.red_flags else ", no critical flags"),
+            })
+            reasoning.append(f"#{i} {c.case_id} → ESI {c.true_esi} ({ESI_CLINICAL_GUIDE[c.true_esi]['label']})")
+        result["correct_order"] = correct_order
+        result["reasoning"] = reasoning
+
+    elif env.task_id == "task3_ambiguous_triage" and env._current_case and env._hidden_history:
+        case = env._current_case
+        hidden = env._hidden_history
+        true_esi = case.true_esi
+        guide = ESI_CLINICAL_GUIDE[true_esi]
+        reasoning = [
+            f"Patient: {case.age}yo {case.gender} — {', '.join(case.symptoms)}.",
+            f"Hidden medications: {', '.join(case.hidden_medications)}.",
+            f"Key contraindication: {hidden.get('contraindication', 'none')}.",
+            hidden.get("contraindication_summary", ""),
+            f"Correct ESI = {true_esi} ({guide['label']}).",
+            "✓ Contraindication correctly identified — bonus awarded." if env._contraindication_identified
+            else "✗ Contraindication missed — ask about medications first to maximise score.",
+        ]
+        result.update({
+            "true_esi": true_esi, "esi_label": guide["label"], "esi_color": guide["color"],
+            "contraindication_identified": env._contraindication_identified,
+            "hidden_medications": case.hidden_medications, "hidden_allergies": case.hidden_allergies,
+            "contraindication": hidden.get("contraindication"),
+            "contraindication_summary": hidden.get("contraindication_summary", ""),
+            "revealed_topics": list(env._revealed_topics), "reasoning": reasoning,
+        })
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Learning from users
+# ---------------------------------------------------------------------------
+
+import json
+import time as _time
+
+FEEDBACK_FILE = Path(__file__).parent / "feedback_log.jsonl"
+
+
+class FeedbackRequest(BaseModel):
+    case_id: str
+    task_id: str
+    symptoms: list
+    human_esi: Optional[int] = None
+    true_esi: Optional[int] = None
+    reward: Optional[float] = None
+    session_id: Optional[str] = "default"
+
+
+@app.post("/feedback")
+def submit_feedback(req: FeedbackRequest) -> Dict[str, Any]:
+    """Store a human triage decision for agent learning."""
+    record = {
+        "ts": _time.time(),
+        "case_id": req.case_id,
+        "task_id": req.task_id,
+        "symptoms": req.symptoms,
+        "human_esi": req.human_esi,
+        "true_esi": req.true_esi,
+        "reward": req.reward,
+    }
+    with open(FEEDBACK_FILE, "a") as f:
+        f.write(json.dumps(record) + "\n")
+    return {"status": "recorded", "total": _count_feedback()}
+
+
+def _count_feedback() -> int:
+    if not FEEDBACK_FILE.exists():
+        return 0
+    with open(FEEDBACK_FILE) as f:
+        return sum(1 for _ in f)
+
+
+@app.get("/learned_heuristics")
+def learned_heuristics() -> Dict[str, Any]:
+    """
+    Aggregate human decisions into symptom-level ESI heuristics.
+    Returns: { symptom: { avg_esi, count, correct_rate } }
+    """
+    if not FEEDBACK_FILE.exists():
+        return {"heuristics": {}, "total_feedback": 0}
+
+    from collections import defaultdict
+    sym_data: Dict[str, list] = defaultdict(list)
+    total = 0
+
+    with open(FEEDBACK_FILE) as f:
+        for line in f:
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            total += 1
+            if rec.get("human_esi") and rec.get("task_id") == "task1_esi_assignment":
+                for sym in rec.get("symptoms", []):
+                    sym_data[sym].append({
+                        "esi": rec["human_esi"],
+                        "correct": rec.get("reward", 0) >= 0.8,
+                    })
+
+    heuristics = {}
+    for sym, entries in sym_data.items():
+        avg_esi = sum(e["esi"] for e in entries) / len(entries)
+        correct_rate = sum(1 for e in entries if e["correct"]) / len(entries)
+        heuristics[sym] = {
+            "avg_esi": round(avg_esi, 2),
+            "count": len(entries),
+            "correct_rate": round(correct_rate, 2),
+        }
+
+    return {"heuristics": heuristics, "total_feedback": total}
+
+
+@app.get("/feedback/stats")
+def feedback_stats() -> Dict[str, Any]:
+    """Summary stats for the learning dashboard."""
+    total = _count_feedback()
+    if total == 0:
+        return {"total": 0, "avg_reward": None, "tasks": {}}
+
+    from collections import defaultdict
+    tasks: Dict[str, list] = defaultdict(list)
+    rewards = []
+
+    if FEEDBACK_FILE.exists():
+        with open(FEEDBACK_FILE) as f:
+            for line in f:
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if rec.get("reward") is not None:
+                    rewards.append(rec["reward"])
+                    tasks[rec.get("task_id", "unknown")].append(rec["reward"])
+
+    return {
+        "total": total,
+        "avg_reward": round(sum(rewards) / len(rewards), 3) if rewards else None,
+        "tasks": {k: {"count": len(v), "avg_reward": round(sum(v) / len(v), 3)} for k, v in tasks.items()},
+    }
+
+
 
 @app.get("/", include_in_schema=False)
 def serve_index():
