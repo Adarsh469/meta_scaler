@@ -4,10 +4,11 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: Dockerfile
     container_name: triage-backend
     ports:
       - "7860:7860"
+      - "7861:7861"
     environment:
       - PYTHONUNBUFFERED=1
       # Pass your HF token: HF_TOKEN=xxx docker compose up
@@ -17,7 +18,7 @@ services:
       - feedback_data:/app/feedback_data
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:7860/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:7861/health" ]
       interval: 30s
       timeout: 10s
       start_period: 25s
@@ -35,7 +36,7 @@ services:
       - NODE_ENV=production
       # Server-side: Next.js rewrites proxy /api/* → backend:7860 internally
       # The browser never needs to know this URL — it always calls /api/* on port 3000.
-      - BACKEND_URL=http://backend:7860
+      - BACKEND_URL=http://backend:7861
     depends_on:
       backend:
         condition: service_healthy
