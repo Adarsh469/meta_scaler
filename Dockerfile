@@ -17,7 +17,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app.py env.py server.py inference.py openenv.yaml ./
+COPY server/ ./server/
+COPY env.py inference.py openenv.yaml pyproject.toml uv.lock ./
 COPY dataset/ ./dataset/
 
 EXPOSE 7860
@@ -29,6 +30,6 @@ ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:7860/ || exit 1
+    CMD curl -f http://localhost:7860/health || exit 1
 
-CMD ["python", "app.py"]
+CMD ["python", "server/app.py"]

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clinical-triage-env"
+version = "1.0.0"
+description = "Emergency Department triage simulator for the Meta Hackathon"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Adarsh469"}
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "pydantic>=2.6.0",
+    "pandas>=2.2.0",
+    "scipy>=1.12.0",
+    "openai>=1.20.0",
+    "httpx>=0.27.0",
+    "gradio>=4.44.0",
+    "python-dotenv>=1.0.1",
+    "openenv-core>=0.2.0",
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[tool.setuptools]
+packages = ["."]

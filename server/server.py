@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from env import ClinicalTriageEnv, TriageAction, ResetResult, StepResult
 
-FRONTEND_DIR = Path(__file__).parent / "frontend"
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 app = FastAPI(
     title="ClinicalTriage-Env API",

@@ -373,10 +373,13 @@ with gr.Blocks(title="ClinicalTriage-Env") as demo:
 # Merge Gradio UI into the FastAPI app
 app = gr.mount_gradio_app(fastapi_app, demo, path="/")
 
-if __name__ == "__main__":
+def main():
     import uvicorn
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=GRAD_PORT,
     )
+
+if __name__ == "__main__":
+    main()
