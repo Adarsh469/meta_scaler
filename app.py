@@ -23,8 +23,8 @@ import uvicorn
 sys.path.insert(0, os.path.dirname(__file__))
 
 # ── Config ─────────────────────────────────────────────────────────────────
-API_PORT  = 7861          # FastAPI  (internal)
-GRAD_PORT = 7860          # Gradio   (HF public port)
+API_PORT  = 7860          # Unified port for both Gradio and API
+GRAD_PORT = 7860
 API_BASE  = f"http://localhost:{API_PORT}"
 
 TASKS = {
@@ -41,25 +41,9 @@ DEFAULT_ACTIONS = {
 }
 
 
-# ── Start FastAPI in background ────────────────────────────────────────────
-def _start_api():
-    from server import app as fastapi_app
-    uvicorn.run(fastapi_app, host="0.0.0.0", port=API_PORT, log_level="warning")
-
-def _wait_for_api(timeout: int = 60) -> bool:
-    for _ in range(timeout * 2):
-        try:
-            r = httpx.get(f"{API_BASE}/health", timeout=2)
-            if r.status_code == 200:
-                return True
-        except Exception:
-            pass
-        time.sleep(0.5)
-    return False
-
-thread = threading.Thread(target=_start_api, daemon=True)
-thread.start()
-_wait_for_api()
+# ── Setup FastAPI ──────────────────────────────────────────────────────────
+from server import app as fastapi_app
+fastapi_app.title = "ClinicalTriage-Env (Unified Engine)"
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -386,10 +370,13 @@ with gr.Blocks(title="ClinicalTriage-Env") as demo:
 
 
 # ── Launch ─────────────────────────────────────────────────────────────────
+# Merge Gradio UI into the FastAPI app
+app = gr.mount_gradio_app(fastapi_app, demo, path="/")
+
 if __name__ == "__main__":
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=GRAD_PORT,
-        share=False,
-        css=CSS,
+    import uvicorn
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=GRAD_PORT,
     )

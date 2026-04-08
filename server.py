@@ -394,13 +394,13 @@ def feedback_stats() -> Dict[str, Any]:
 
 
 
-@app.get("/", include_in_schema=False)
-def serve_index():
-    """Serve the frontend dashboard."""
-    index = FRONTEND_DIR / "index.html"
-    if index.exists():
-        return FileResponse(str(index))
-    return JSONResponse({"status": "ok", "message": "ClinicalTriage-Env API — frontend not found"})
+# @app.get("/", include_in_schema=False)
+# def serve_index():
+#     """Serve the frontend dashboard."""
+#     index = FRONTEND_DIR / "index.html"
+#     if index.exists():
+#         return FileResponse(str(index))
+#     return JSONResponse({"status": "ok", "message": "ClinicalTriage-Env API — frontend not found"})
 
 # Mount static assets (CSS, JS, images) under /static
 if FRONTEND_DIR.exists():
