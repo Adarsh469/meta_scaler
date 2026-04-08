@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 # Constants
 # ---------------------------------------------------------------------------
 
-DATASET_PATH = Path(__file__).parent / "dataset" / "medical_triage_500.jsonl"
+DATASET_PATH = Path(__file__).parent.parent / "dataset" / "medical_triage_500.jsonl"
 
 # Map dataset urgency_category + risk_level → ESI
 def _compute_esi(urgency_category: str, risk_level: str, red_flags: List[str]) -> int:
