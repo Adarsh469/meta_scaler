@@ -1,0 +1,45 @@
+services:
+
+  # ── Backend (FastAPI / uvicorn) ─────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: triage-backend
+    ports:
+      - "7860:7860"
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Pass your HF token: HF_TOKEN=xxx docker compose up
+      - HF_TOKEN=${HF_TOKEN:-}
+    volumes:
+      # Persist the learning feedback log between container restarts
+      - feedback_data:/app/feedback_data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:7860/health" ]
+      interval: 30s
+      timeout: 10s
+      start_period: 25s
+      retries: 3
+
+  # ── Frontend (Next.js) ──────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: triage-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # Server-side: Next.js rewrites proxy /api/* → backend:7860 internally
+      # The browser never needs to know this URL — it always calls /api/* on port 3000.
+      - BACKEND_URL=http://backend:7860
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  feedback_data:

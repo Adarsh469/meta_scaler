@@ -6,8 +6,12 @@ import {
 } from "./types";
 import { ExplainData } from "@/components/ExplanationPanel";
 
+// In Docker: browser calls /api/* → Next.js server rewrites to http://backend:7860/*
+// In local dev: use NEXT_PUBLIC_API_URL (default http://localhost:7860) directly
 const API_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:7860";
+    process.env.NODE_ENV === "production"
+        ? "/api"
+        : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:7860");
 
 async function api<T>(
     path: string,

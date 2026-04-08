@@ -1,0 +1,29 @@
+# Node modules — Docker installs these fresh
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js build output
+.next/
+out/
+build/
+
+# Env files (injected at runtime via docker-compose)
+.env
+.env.local
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# Docker meta
+Dockerfile
+.dockerignore
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.pem

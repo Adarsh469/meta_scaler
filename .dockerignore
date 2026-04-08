@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+env/
+venv/
+.env
+.env*
+
+# Logs & runtime files
+*.log
+server.log
+feedback_log.jsonl
+feedback_data.jsonl
+learned_heuristics.json
+.server.pid
+
+# Git
+.git/
+.gitignore
+
+# Dataset (mount as volume in prod if needed)
+# dataset/   ← commented: we DO copy dataset into the image
+
+# Docker
+Dockerfile
+docker-compose.yml
+frontend/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.pem
+
+# Local notes
+run.txt
+run.sh
